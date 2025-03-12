@@ -13,12 +13,12 @@ def send_icmp():
         for i in range(4):
             try:
                 s.sendto(raw(packet), (dst_ip, 0))
-                print(f"Sent ICMP packet {i + 1}/4 to {dst_ip} (TTL: {packet.ttl})")
+                print(f"[SENDER] Sent ICMP packet {i + 1}/4 to {dst_ip} (TTL: {packet.ttl})")
             except Exception as e:
-                print(f"Send error: {str(e)}")
+                print(f"[SENDER] Send error: {str(e)}")
             time.sleep(1.5)
 
 
 if __name__ == "__main__":
-    print("\nStarting ICMP sender...")
+    print("\n[SENDER] Starting ICMP sender...")
     send_icmp()
