@@ -1,56 +1,19 @@
-import os
+import argparse
+import logging
 import struct
 import time
-import numpy as np
-import logging
-import argparse
-from collections import defaultdict
 from fcntl import ioctl
+
+import numpy as np
+from PIL import Image
 from scapy.layers.inet import IP, ICMP
 from scapy.packet import Raw
-from PIL import Image
-import io
 
+from ImageReassembler import ImageReassembler
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(filename)-15s - %(asctime)s - %(levelname)s - %(message)s')
-
-
-class ImageReassembler:
-    def __init__(self):
-        self.image_buffers = defaultdict(bytes)
-        self.last_received = defaultdict(float)
-        self.timeout = 5
-
-    def add_packet(self, src_ip, data):
-        if data == b"END_OF_IMAGE":
-            self.save_image(src_ip)
-            return True
-        self.image_buffers[src_ip] += data
-        self.last_received[src_ip] = time.time()
-        return False
-
-    def save_image(self, src_ip):
-        data = self.image_buffers.get(src_ip)
-        if not data:
-            logging.error(f"Keine Daten zum Speichern von {src_ip}")
-            return
-
-        directory = "/app/data/received"
-        os.makedirs(directory, exist_ok=True)
-        filename = os.path.join(directory, f"received_{src_ip}_{int(time.time())}.png")
-        try:
-            # Konvertiere die Rohdaten in ein Pillow Image-Objekt
-            image = Image.open(io.BytesIO(data))
-            # Speichere das Bild im PNG-Format
-            image.save(filename, format="PNG")
-            logging.info(f"Bild gespeichert: {filename} ({len(data)} bytes)")
-            del self.image_buffers[src_ip]
-            del self.last_received[src_ip]
-        except Exception as e:
-            logging.error(f"Speicherfehler {filename}: {str(e)}")
-
 
 def open_tun(device_name):
     """
@@ -85,79 +48,136 @@ def open_tun(device_name):
     return tun
 
 
-def bytes_to_bitarray(data):
-    arr = np.frombuffer(data, dtype=np.uint8)
-    return np.unpackbits(arr)
-
-
-def format_payload(payload):
+def bytes_to_bitarray(data, max_bits=128):
+    """Konvertiert Bytes in eine Binärdarstellung"""
     try:
-        text = payload.decode('utf-8', errors='replace')
-    except UnicodeDecodeError:
-        text = "[BINARY DATA]"
+        # Versuche mit numpy für optimierte Performance
+        arr = np.frombuffer(data[:max_bits // 8], dtype=np.uint8)
+        bits = np.unpackbits(arr)
+        bit_str = ''.join(str(b) for b in bits)
+    except Exception:
+        # Fallback ohne numpy
+        bit_str = ''.join(format(byte, '08b') for byte in data[:max_bits // 8])
 
-    hex_str = ' '.join(f"{b:02x}" for b in payload[:16])
-    if len(payload) > 16:
-        hex_str += " ..."
-    return hex_str, text
+    if len(data) * 8 > max_bits:
+        bit_str += f"... ({len(data) * 8} bits)"
+    return bit_str
 
 
-if __name__ == "__main__":
+def format_icmp_payload(payload):
+    """Formatiert ICMP-Payload für detailliertes Logging"""
+    try:
+        # Hex-Darstellung der ersten 32 Bytes
+        hex_str = ' '.join(f"{b:02x}" for b in payload[:32])
+        if len(payload) > 32:
+            hex_str += f" ... (+{len(payload) - 32} bytes)"
+
+        # Textdarstellung mit Ersetzung nicht-druckbarer Zeichen
+        text = ''.join(
+            c if 32 <= ord(c) < 127 else f'\\x{ord(c):02x}'
+            for c in payload[:64].decode('utf-8', errors='replace')
+        )
+
+        # Bitdarstellung der ersten 128 bits (16 Bytes)
+        bit_str = bytes_to_bitarray(payload)
+
+        return (
+            f"Hex: {hex_str}\n"
+            f"Text: {text}\n"
+            f"Bits: {bit_str}"
+        )
+    except Exception as e:
+        return f"Payload Format Error: {str(e)}"
+
+
+def process_packet(packet, reassembler, protocol):
+    """Verarbeitet Netzwerkpakete und gibt Verarbeitungsstatus zurück"""
+    try:
+        if packet.proto == protocol:
+            return handle_custom_protocol(packet, reassembler)
+
+        if ICMP in packet:
+            handle_icmp(packet)
+
+    except Exception as e:
+        logging.error(f"Paketverarbeitungsfehler: {str(e)}")
+        return False
+    return True
+
+
+def handle_custom_protocol(packet, reassembler):
+    """Verarbeitet benutzerdefinierte Protokollpakete"""
+    src_ip = packet.src
+    payload = bytes(packet.payload)
+
+    # Endsignal-Erkennung
+    if payload == b"END_OF_IMAGE":
+        logging.info(f"🔚 Endsignal von {src_ip} erhalten")
+        reassembler.save_image(src_ip)
+        return True
+
+    # Datenpaket verarbeiten
+    is_end = reassembler.add_packet(src_ip, payload)
+    logging.info(f"📦 Segment von {src_ip}: {len(payload)} Bytes")
+    return is_end
+
+
+def handle_icmp(packet):
+    """Verarbeitet ICMP-Pakete mit detailliertem Payload-Logging"""
+    icmp = packet[ICMP]
+    logging.info("\n" + "=" * 40)
+    logging.info(f"🛰 ICMP Paket von {packet.src}")
+    logging.info(f"Type: {icmp.type}, Code: {icmp.code}")
+
+    if Raw in packet:
+        payload = packet[Raw].load
+        if payload:
+            formatted = format_icmp_payload(payload)
+            logging.info(f"Payload Details:\n{formatted}")
+
+    logging.info("=" * 40 + "\n")
+
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--protocol", type=int, default=253,
-                        help="IP Protokollnummer für Bilddaten")
+                        help="IP-Protokollnummer (default: 253)")
     args = parser.parse_args()
 
     reassembler = ImageReassembler()
+    tun = None
 
     try:
         tun = open_tun("tun0")
-
-        logging.info("Listening on tun0...")
+        logging.info("🎧 Empfangsbereit auf tun0...")
 
         while True:
-            raw_packet = tun.read(65535)
-            if raw_packet:
-                try:
+            try:
+                raw_packet = tun.read(65535)
+                if raw_packet:
                     packet = IP(raw_packet)
+                    process_packet(packet, reassembler, args.protocol)
 
-                    # Bilddaten verarbeiten
-                    if packet.proto == args.protocol:
-                        src_ip = packet.src
-                        payload = bytes(packet.payload)
-                        is_end = reassembler.add_packet(src_ip, payload)
-                        if is_end:
-                            logging.info(f"Endsignal empfangen von {src_ip}")
-                        else:
-                            logging.info(f"Bildsegment von {src_ip} empfangen ({len(payload)} bytes)")
-                        continue
+                # Timeout-Check alle 30 Sekunden
+                if time.time() % 30 < 0.01:
+                    reassembler.check_timeouts()
 
-                    # ICMP verarbeiten
-                    if ICMP in packet:
-                        icmp = packet[ICMP]
-                        logging.info(f"\nICMP Paket von {packet.src}")
-                        logging.info(f"Type: {icmp.type}, Code: {icmp.code}")
+                time.sleep(0.001)
 
-                        if Raw in packet:
-                            payload = packet[Raw].load
-                            if payload:
-                                hex_str, text = format_payload(payload)
-                                logging.info(f"Text: {text}")
-                                logging.info(f"Hex: {hex_str}")
+            except KeyboardInterrupt:
+                logging.info("⏹ Abbruch durch Benutzer...")
+                break
+            except Exception as e:
+                logging.error(f"💥 Kritischer Fehler: {str(e)}")
+                break
 
-                except Exception as e:
-                    logging.error(f"Verarbeitungsfehler: {str(e)}")
-
-            # Timeout prüfen alle 2 Sekunden
-            if time.time() % 2 < 0.1:
-                reassembler.check_timeouts()
-
-            time.sleep(0.01)
-
-    except KeyboardInterrupt:
-        logging.info("Speichere verbleibende Bilder...")
-        for ip in list(reassembler.image_buffers.keys()):
-            reassembler.save_image(ip)
     finally:
-        tun.close()
+        if tun:
+            tun.close()
+        logging.info("💾 Speichere verbleibende Daten...")
+        reassembler.save_all()
+        logging.info("🧹 Bereinigung abgeschlossen.")
 
+
+if __name__ == "__main__":
+    main()
