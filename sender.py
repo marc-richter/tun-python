@@ -5,7 +5,7 @@ from scapy.all import IP, ICMP, raw
 
 def send_icmp():
     dst_ip = "192.0.2.1"  # Wichtig: Nicht die eigene Interface-IP!
-    packet = IP(dst=dst_ip, ttl=64) / ICMP() / b"TESTPAYLOAD_TUN_123"
+    packet = IP(dst=dst_ip, ttl=64) / ICMP() / b"FDIT_RADIOLAB_2025"
 
     with socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) as s:
         s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
