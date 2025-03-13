@@ -43,5 +43,6 @@ docker run --rm -it \
   --sysctl net.ipv4.ip_forward=1 \
   --sysctl net.ipv6.conf.all.disable_ipv6=1 \
   --device /dev/net/tun \
+  -v $(pwd)/data:/app/data \
   tun-python
 ```

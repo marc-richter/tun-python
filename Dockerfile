@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
     ethtool \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install scapy numpy
+RUN pip3 install scapy numpy pillow
 
 
 COPY *.py /app/
