@@ -2,6 +2,10 @@
 
 ##############################################
 ### TUN-Device Initialisierung (Kernel-Ebene)
+###
+### Es wird ein TUN-Device mit der IP-Adresse 192.0.2.2 erstellt.
+### Das Routing wird so konfiguriert, dass alle Anfragen an IP Adressen aus dem Subnetz 192.0.2.0/24 an das TUN-Device tun0 192.0.2.2  weitergeleitet werden.
+### Dh. alle Anfragen an IP-Adressen aus 192.0.2.0/24 außer (192.0.2.0 & 192.0.2.2) werden an das tun0 Device weitergeleitet.
 ##############################################
 
 # Erstellt Gerätedatei-Struktur für TUN/TAP

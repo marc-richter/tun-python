@@ -1,0 +1,26 @@
+flowchart LR
+    classDef app fill:#4CAF50,stroke:#388E3C
+    classDef network fill:#2196F3,stroke:#1976D2
+    classDef config fill:#9C27B0,stroke:#7B1FA2
+    classDef firewall fill:#FF5722,stroke:#E64A19
+    classDef storage fill:#607D8B,stroke:#455A64
+
+    subgraph sender["Sender"]
+        app1["Python Script"]:::app
+        tun0["TUN Device 192.0.2.1"]:::network
+        routing["Routing Rules"]:::config
+        iptables["IPTables NAT"]:::firewall
+    end
+
+    subgraph empfaenger["Empfänger"]
+        app2["TUN Reader"]:::app
+        tun0_2["TUN Device 192.0.2.2"]:::network
+        reassembler["Image Reassembler"]:::storage
+    end
+
+    app1 --> |Raw IP Packets| tun0
+    tun0 --> |Via Virtual Network| tun0_2
+    tun0_2 --> |Datenstrom| app2
+    app2 --> |Bildfragmente| reassembler
+    routing --> |"192.0.2.0/24 dev tun0"| tun0
+    iptables --> |"MASQUERADE 192.0.2.0/24"| tun0

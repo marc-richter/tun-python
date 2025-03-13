@@ -13,6 +13,12 @@ A demonstration project for working with TUN/TAP interfaces in Python using Dock
 - Real-time packet monitoring with tcpdump
 - Cross-platform compatibility via Docker
 
+## ⚙️ Configuration
+
+<div style="text-align: center;">
+  <img src="mermaid-diagram-2025-03-13-140452.png" alt="Alt-Text" />
+</div>
+
 ## 📋 Prerequisites
 - Docker 20.10+
 - Linux host (recommended) or Docker Desktop with Linux containers
