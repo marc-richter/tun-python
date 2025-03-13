@@ -2,9 +2,13 @@ import os
 import struct
 import time
 import numpy as np
+import logging
 from fcntl import ioctl
 from scapy.layers.inet import IP, ICMP
 from scapy.packet import Raw
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format=' %(filename)-15s - %(asctime)s - %(levelname)s - %(message)s')
 
 
 def open_tun(device_name):
@@ -36,7 +40,7 @@ def format_payload(payload):
     if len(payload) > 16:
         hex_str += " ..."
 
-    return f" Text: {text}\n                       Hex: {hex_str}"
+    return hex_str, text
 
 
 if __name__ == "__main__":
@@ -48,7 +52,7 @@ if __name__ == "__main__":
         os.system("ip link set tun0 up mtu 1500 qlen 500")
 
         start_time = time.time()
-        print("[TUN READER] Listening on tun0...")
+        logging.info("Listening on tun0...")
 
         all_packets_bits = []
 
@@ -61,32 +65,35 @@ if __name__ == "__main__":
 
                 try:
                     packet = IP(raw_packet)
-                    print(f"\n[TUN READER] [SUCCESS] Packet ({time.time() - start_time:.2f}s)")
-                    print(f"[TUN READER] Hex Dump: {hex_dump}")
+                    logging.info(f"\n[SUCCESS] Packet ({time.time() - start_time:.2f}s)")
+                    logging.info(f"Hex Dump: {hex_dump}")
 
                     if ICMP in packet:
                         icmp = packet[ICMP]
-                        print(f"[TUN READER] ICMP Type: {icmp.type}, Code: {icmp.code}")
+                        logging.info(f"ICMP Type: {icmp.type}, Code: {icmp.code}")
 
                         # Payload-Extraktion
                         if Raw in packet:
                             payload = packet[Raw].load
-                            print("[TUN READER] Payload:")
-                            print(f"[TUN READER]         {format_payload(payload)}")
+                            logging.info("Payload:")
+                            if payload:
+                                hex_str, text = format_payload(payload)
+                                logging.info(f"   Text: {text}")
+                                logging.info(f"   Hex : {hex_str}")
+                                logging.info(f"   Bits: {bit_array[:20]}...")
                         else:
-                            print("[TUN READER] Payload: [No payload detected]")
-
-                    print(f"             First 20 Bits: {bit_array[:20]}...")
+                            logging.info("Payload: [No payload detected]")
 
                 except Exception as e:
-                    print(f"\n[TUN READER] [RAW PACKET] Error: {str(e)}")
-                    print(f"[TUN READER] : {hex_dump}")
-                    print(f"[TUN READER] Bits: {bit_array[:20]}...")
+                    logging.error("An error occurred while parsing the packet:")
+                    logging.error(f"{hex_dump}")
+                    logging.error(f"Bits: {bit_array[:20]}...")
+                    logging.error(f"Error: {str(e)}")
 
             time.sleep(0.1)
 
     except KeyboardInterrupt:
-        print("\n[TUN READER] Reader stopped")
-        print(f"[TUN READER] Gespeicherte Pakete: {len(all_packets_bits)}")
+        logging.error("Reader stopped")
+        logging.error(f"Gespeicherte Pakete: {len(all_packets_bits)}")
     finally:
         tun.close()

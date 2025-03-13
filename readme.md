@@ -20,14 +20,20 @@ A demonstration project for working with TUN/TAP interfaces in Python using Dock
 
 ## 🛠️ Build & Run
 
-### 1. Build the Docker Image
+### 1. Delete Existing tun-python Image (Optional)
+
+```bash
+docker rmi $(docker images tun-python:latest -q)
+```
+
+### 2. Build the Docker Image
 
 
 ```bash
 docker build -t tun-python .
 ```
 
-### 2. Start the Container
+### 3. Start the Container
 
 ```bash
 docker run --rm -it \
