@@ -6,6 +6,12 @@
 
 A demonstration project for working with TUN/TAP interfaces in Python using Docker. Ideal for network programming experiments and VPN prototyping.
 
+## To Dos:
+
+- [x] Schreibe ein TUN Sender der in tun im byte format schreibt -> ausgangspunkt die empfangenen samples vom sdr in ip paket parsen und reinschreiben
+- [x] Logik schreiben die einen Frame korrekt mit IP Daten befüllt
+- [x] Kanalcodierung hinzufügen
+
 ## 🌟 Features
 - Creates virtual TUN interfaces in Docker containers
 - Sends/receives custom ICMP packets

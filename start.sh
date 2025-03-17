@@ -96,6 +96,9 @@ iptables -A FORWARD -i eth0 -o tun0 -j ACCEPT
 ### Pre-Flight Checks
 ################################
 echo "--- Pre-Check ---"
+
+ifconfig
+
 ip link show tun0 | grep -q "state UP" || echo "Interface DOWN!"  # Kernel-Statusabfrage
 ping -c 1 192.0.2.1 -I tun0 -W 1 || true  # Bindet an Interface (SO_BINDTODEVICE)
 echo "-----------------"
@@ -115,7 +118,10 @@ reader_pid=$!
 sleep 2  # Kernel-Interface kann asynchron sein
 
 # Daten senden
-python3 /app/sender.py 192.0.2.1 -i /app/data/img.png
+python3 /app/sender.py 192.0.2.10 -i /app/data/img.png
+
+ping -c 1 192.0.2.10 -I tun0 -W 1 || true  # Bindet an Interface (SO_BINDTODEVICE)
+ping -c 1 192.0.2.10 -I tun0 -W 1 || true  # Bindet an Interface (SO_BINDTODEVICE)
 
 ################################
 ### Cleanup

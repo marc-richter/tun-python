@@ -154,6 +154,7 @@ def main():
         while True:
             try:
                 raw_packet = tun.read(65535)
+                # TODO: tun.write() schreiben damit die Daten in den TUN-Adapter geschrieben werden als Empfänger
                 if raw_packet:
                     packet = IP(raw_packet)
                     process_packet(packet, reassembler, args.protocol)
