@@ -50,11 +50,12 @@ docker build -t tun-python .
 ```bash
 docker run --rm -it \
   --cap-add=NET_ADMIN \
-  --cap-add=NET_RAW \
   --cap-add=SYS_ADMIN \
   --sysctl net.ipv4.ip_forward=1 \
+  --sysctl net.ipv4.route.flush=1 \
   --sysctl net.ipv6.conf.all.disable_ipv6=1 \
   --device /dev/net/tun \
   -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/var/log \
   tun-python
 ```

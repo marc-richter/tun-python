@@ -1,183 +1,194 @@
 import argparse
 import logging
+import os
 import struct
-import time
+import random
+from datetime import datetime
 from fcntl import ioctl
-
-import numpy as np
-from PIL import Image
-from scapy.layers.inet import IP, ICMP
+from scapy.layers.inet import IP, TCP, ICMP
 from scapy.packet import Raw
+from collections import defaultdict
 
-from ImageReassembler import ImageReassembler
-
-# Configure logging
 logging.basicConfig(level=logging.INFO,
                     format='%(filename)-15s - %(asctime)s - %(levelname)s - %(message)s')
 
-def open_tun(device_name):
-    """
-    Opens a TUN (network tunnel) device.
 
-    This function configures and opens a TUN device, which is a virtual network interface used for tunneling IP packets.
+class TrafficLogger:
+    def __init__(self):
+        self.log_file = open("/var/log/tun_traffic.bin", "ab")
 
-    Parameters:
-    device_name (str): The name of the TUN device to be created (e.g., 'tun0').
+    def log_packet(self, packet):
+        ts = datetime.now().timestamp()
+        header = struct.pack("!dI", ts, len(packet))
+        self.log_file.write(header + packet)
+        self.log_file.flush()
+        logging.info(f"Logged packet: {len(packet)} bytes")
 
-    Constants:
-    LINUX_IFF_TUN (int): Flag to specify the creation of a TUN device (0x0001).
-                         TUN devices operate at the network layer (Layer 3) and handle IP packets.
-    LINUX_IFF_NO_PI (int): Flag to disable the inclusion of packet information (PI) in the data stream (0x1000).
-                           This means that the TUN device will not prepend a header with protocol information to the packets.
-    LINUX_TUNSETIFF (int): IOCTL request code to configure the TUN device (0x400454CA).
-                           This code is used to set the interface flags and name for the TUN device.
 
-    Returns:
-    file object: A file object representing the opened TUN device, which can be used for reading and writing IP packets.
-    """
+class ConnectionTracker:
+    def __init__(self):
+        self.connections = defaultdict(dict)
+        self.base_seq = random.getrandbits(32)
+        self.seq_increment = 64000 + (os.getpid() % 1000)  # Zufälliges Inkrement
+
+    def get_next_seq(self):
+        self.base_seq = (self.base_seq + self.seq_increment) % 0xFFFFFFFF
+        return self.base_seq
+
+    def create_connection(self, key, client_seq):
+        server_seq = self.get_next_seq()
+        self.connections[key] = {
+            'server_seq': (server_seq + 1) % 0xFFFFFFFF,
+            'client_seq': (client_seq + 1) % 0xFFFFFFFF,
+            'status': 'SYN_RECEIVED'
+        }
+        return server_seq
+
+
+def open_tun(device_name="tun0"):
     tun = open("/dev/net/tun", "r+b", buffering=0)
-    LINUX_IFF_TUN = 0x0001
-    LINUX_IFF_NO_PI = 0x1000
-    LINUX_TUNSETIFF = 0x400454CA
-
-    flags = LINUX_IFF_TUN | LINUX_IFF_NO_PI
-    # 16s (string): Interface name, H (unsigned short): Flags, 14s: Padding
-    struct_pack_format = "16sH14s"
-    ifs = struct.pack(struct_pack_format, device_name.encode(), flags, b"")
-    ioctl(tun, LINUX_TUNSETIFF, ifs)
+    ifr = struct.pack("16sH", device_name.encode(), 0x0001 | 0x1000)
+    ioctl(tun, 0x400454CA, ifr)
+    logging.info(f"TUN-Interface {device_name} geöffnet")
     return tun
 
 
-def bytes_to_bitarray(data, max_bits=128):
-    """Konvertiert Bytes in eine Binärdarstellung"""
+def handle_http_request(packet, tun, conn_tracker):
+    ip = packet[IP]
+    tcp = packet[TCP]
+    key = (ip.src, ip.dst, tcp.sport, tcp.dport)
+
+    if tcp.payload and key in conn_tracker.connections:
+        payload = bytes(tcp.payload).decode('utf-8', 'ignore')
+        logging.info(f"HTTP-Anfrage erhalten: {payload.splitlines()[0] if payload else ''}")
+
+        if 'GET /hello-world' in payload:
+            response_body = "Hello World"
+            response = (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "Connection: close\r\n"
+                f"Content-Length: {len(response_body)}\r\n\r\n"
+                f"{response_body}"
+            ).encode()
+
+            response_pkt = IP(
+                src=ip.dst,
+                dst=ip.src
+            ) / TCP(
+                sport=tcp.dport,
+                dport=tcp.sport,
+                seq=conn_tracker.connections[key]['server_seq'],
+                ack=(tcp.seq + len(tcp.payload)) % 0xFFFFFFFF,
+                flags='PA'
+            ) / response
+
+            logging.info(f"Response Payload String: {response.decode('utf-8', 'ignore')}")
+            logging.info(f"Response in Bytes: {bytes(response_pkt)}")
+            logging.info(f"HTTP-Response von {ip.dst} -> {ip.src} gesendet")
+
+            tun.write(bytes(response_pkt))
+
+
+            # Update sequence number with overflow protection
+            new_seq = (conn_tracker.connections[key]['server_seq'] + len(response)) % 0xFFFFFFFF
+            conn_tracker.connections[key]['server_seq'] = new_seq
+
+            # FIN senden
+            fin_pkt = IP(src=ip.dst, dst=ip.src) / TCP(
+                sport=tcp.dport,
+                dport=tcp.sport,
+                seq=new_seq,
+                ack=(tcp.seq + len(tcp.payload)) % 0xFFFFFFFF,
+                flags='FA'
+            )
+            tun.write(bytes(fin_pkt))
+            logging.info("FIN gesendet")
+
+            del conn_tracker.connections[key]
+
+
+def process_packet(raw_packet, tun, logger, conn_tracker):
     try:
-        # Versuche mit numpy für optimierte Performance
-        arr = np.frombuffer(data[:max_bits // 8], dtype=np.uint8)
-        bits = np.unpackbits(arr)
-        bit_str = ''.join(str(b) for b in bits)
-    except Exception:
-        # Fallback ohne numpy
-        bit_str = ''.join(format(byte, '08b') for byte in data[:max_bits // 8])
+        logger.log_packet(raw_packet)
+        packet = IP(raw_packet)
 
-    if len(data) * 8 > max_bits:
-        bit_str += f"... ({len(data) * 8} bits)"
-    return bit_str
+        if packet.haslayer(ICMP) and packet[ICMP].type == 8:
+            logging.info(f"Ping-Anfrage von {packet[IP].src} empfangen")
+            logging.info(f"Ping-Anfrage in Bytes: {bytes(packet)}")
+            response = IP(
+                src=packet[IP].dst,
+                dst=packet[IP].src,
+                ttl=64
+            ) / ICMP(
+                type=0,
+                id=packet[ICMP].id,
+                seq=packet[ICMP].seq
+            ) / packet[Raw].load
 
+            tun.write(bytes(response))
+            logging.info(f"Ping response in bytes: {bytes(response)}")
+            logging.info(f"Ping-Response an {packet[IP].src} gesendet")
 
-def format_icmp_payload(payload):
-    """Formatiert ICMP-Payload für detailliertes Logging"""
-    try:
-        # Hex-Darstellung der ersten 32 Bytes
-        hex_str = ' '.join(f"{b:02x}" for b in payload[:32])
-        if len(payload) > 32:
-            hex_str += f" ... (+{len(payload) - 32} bytes)"
+        elif packet.haslayer(TCP) and packet[TCP].dport == 8080:
+            ip = packet[IP]
+            tcp = packet[TCP]
+            key = (ip.src, ip.dst, tcp.sport, tcp.dport)
 
-        # Textdarstellung mit Ersetzung nicht-druckbarer Zeichen
-        text = ''.join(
-            c if 32 <= ord(c) < 127 else f'\\x{ord(c):02x}'
-            for c in payload[:64].decode('utf-8', errors='replace')
-        )
+            logging.info(f"TCP-Paket empfangen: {ip.src}:{tcp.sport} -> {ip.dst}:{tcp.dport}")
+            # log http payload as utf8 string
+            if tcp.payload:
+                logging.info(f"HTTP-Payload: {bytes(tcp.payload).decode('utf-8', 'ignore')}")
 
-        # Bitdarstellung der ersten 128 bits (16 Bytes)
-        bit_str = bytes_to_bitarray(payload)
+            if tcp.flags & 0x02:  # SYN
+                logging.info(f"TCP SYN von {ip.src} empfangen (Client SEQ: {tcp.seq})")
+                server_seq = conn_tracker.create_connection(key, tcp.seq)
 
-        return (
-            f"Hex: {hex_str}\n"
-            f"Text: {text}\n"
-            f"Bits: {bit_str}"
-        )
+                syn_ack = IP(src=ip.dst, dst=ip.src) / TCP(
+                    sport=tcp.dport,
+                    dport=tcp.sport,
+                    seq=server_seq,
+                    ack=(tcp.seq + 1) % 0xFFFFFFFF,
+                    flags='SA'
+                )
+                tun.write(bytes(syn_ack))
+                logging.info(f"SYN-ACK gesendet (SEQ: {server_seq}, ACK: {(tcp.seq + 1) % 0xFFFFFFFF})")
+
+            elif tcp.flags & 0x10:  # ACK
+                logging.info(f"TCP ACK von {ip.src} empfangen (Client SEQ: {tcp.seq}, ACK: {tcp.ack})")
+                if key in conn_tracker.connections:
+                    expected_ack = (conn_tracker.connections[key]['server_seq']) % 0xFFFFFFFF  # SEQ+1 des SYN-ACKs
+                    if tcp.ack == expected_ack:
+                        conn_tracker.connections[key]['status'] = 'ESTABLISHED'
+                        logging.info("TCP-Verbindung etabliert")
+                        handle_http_request(packet, tun, conn_tracker)  # HIER ANPASSEN
+
+            elif tcp.flags & 0x01:  # FIN
+                    if key in conn_tracker.connections:
+                        logging.info("TCP FIN empfangen")
+                        del conn_tracker.connections[key]
+
     except Exception as e:
-        return f"Payload Format Error: {str(e)}"
-
-
-def process_packet(packet, reassembler, protocol):
-    """Verarbeitet Netzwerkpakete und gibt Verarbeitungsstatus zurück"""
-    try:
-        if packet.proto == protocol:
-            return handle_custom_protocol(packet, reassembler)
-
-        if ICMP in packet:
-            handle_icmp(packet)
-
-    except Exception as e:
-        logging.error(f"Paketverarbeitungsfehler: {str(e)}")
-        return False
-    return True
-
-
-def handle_custom_protocol(packet, reassembler):
-    """Verarbeitet benutzerdefinierte Protokollpakete"""
-    src_ip = packet.src
-    payload = bytes(packet.payload)
-
-    # Endsignal-Erkennung
-    if payload == b"END_OF_IMAGE":
-        logging.info(f"🔚 Endsignal von {src_ip} erhalten")
-        reassembler.save_image(src_ip)
-        return True
-
-    # Datenpaket verarbeiten
-    is_end = reassembler.add_packet(src_ip, payload)
-    logging.info(f"📦 Segment von {src_ip}: {len(payload)} Bytes")
-    return is_end
-
-
-def handle_icmp(packet):
-    """Verarbeitet ICMP-Pakete mit detailliertem Payload-Logging"""
-    icmp = packet[ICMP]
-    logging.info("\n" + "=" * 40)
-    logging.info(f"🛰 ICMP Paket von {packet.src}")
-    logging.info(f"Type: {icmp.type}, Code: {icmp.code}")
-
-    if Raw in packet:
-        payload = packet[Raw].load
-        if payload:
-            formatted = format_icmp_payload(payload)
-            logging.info(f"Payload Details:\n{formatted}")
-
-    logging.info("=" * 40 + "\n")
+        logging.error(f"Verarbeitungsfehler: {str(e)}")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--protocol", type=int, default=253,
-                        help="IP-Protokollnummer (default: 253)")
     args = parser.parse_args()
 
-    reassembler = ImageReassembler()
-    tun = None
+    logger = TrafficLogger()
+    conn_tracker = ConnectionTracker()
+    tun = open_tun()
 
     try:
-        tun = open_tun("tun0")
-        logging.info("🎧 Empfangsbereit auf tun0...")
-
+        logging.info("TUN-Listener gestartet (GLOBAL MODE)")
         while True:
-            try:
-                raw_packet = tun.read(65535)
-                # TODO: tun.write() schreiben damit die Daten in den TUN-Adapter geschrieben werden als Empfänger
-                if raw_packet:
-                    packet = IP(raw_packet)
-                    process_packet(packet, reassembler, args.protocol)
-
-                # Timeout-Check alle 30 Sekunden
-                if time.time() % 30 < 0.01:
-                    reassembler.check_timeouts()
-
-                time.sleep(0.001)
-
-            except KeyboardInterrupt:
-                logging.info("⏹ Abbruch durch Benutzer...")
-                break
-            except Exception as e:
-                logging.error(f"💥 Kritischer Fehler: {str(e)}")
-                break
-
+            raw_packet = tun.read(65535)
+            if raw_packet:
+                process_packet(raw_packet, tun, logger, conn_tracker)
     finally:
-        if tun:
-            tun.close()
-        logging.info("💾 Speichere verbleibende Daten...")
-        reassembler.save_all()
-        logging.info("🧹 Bereinigung abgeschlossen.")
+        tun.close()
+        logger.log_file.close()
 
 
 if __name__ == "__main__":

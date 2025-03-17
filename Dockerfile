@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     net-tools \
     iputils-ping \
+    curl \
     tcpdump \
     iptables \
     ethtool \
