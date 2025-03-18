@@ -1,61 +1,54 @@
-# TUN/TAP Python Demo Project
+# VPN Tunnel System with RabbitMQ
 
-![Docker](https://img.shields.io/badge/Docker-20.10%2B-blue)
-![Python](https://img.shields.io/badge/Python-3.8%2B-green)
-![Network](https://img.shields.io/badge/Network-TUN%2FTAP-orange)
+[![](https://mermaid.ink/img/pako:eNqNlNtu2kAQhl9ltLlJJEhtAwHcqpLBqIoqUkKIKrWuqsUeg4VPWa-bRklu-wB9xD5Jx1kbG2hp9wov_zf7z2H3kbmJh8xkK8HTNSxsJwZaWb5UGw6zE3eDAq5Q3idiA3rfONcH59q59kq_cJiSF2s-vf7ssDlfLgM5va51hsO-mKYportaa5FynMSSBzGFtmpxBxa3V6Y-NAqwQmUe1-hoBx3VaHcH7fwBHRP64Qbeo4gxhFPrTGk2L9-1zN6Vjf4im5BsgSIKYh5CI5nyYPrHaZw9gXb77ZPDdEiDeAVbm9C-BDKpOewJxg2rpdyAjyKQCJfj6QzmeJdjJiGIZVIkC6e3GYpfP34qq2d7MSx4o4J0iOQezDg1UoIvkkjRCiO-CLNPN-OoMF2wptczmOXLMMjWQBzEaii-CuWsCEFjsDMTJdyDKWYZXyHYGAbfUDwAJUFly_IIRQGOGj0uoYsy-9L5sbztRv9Kug_vkDrC6_Kl4UMja4q0j46qkg1UyeaYpWQRjxbNPjQ-PFYqcnGkULr2z0pZh73R9bJUW8f_OSTVoOlGs0gFWo52oZ8oPcZeNdJuyLPMRh_oWoMfhKF54vvDoaa13CRMhHm_JjOtTIpkg-37wJNr00i_v96DafBLGHW_51eAeaJ1hkvs7cvVDayO0_yu29kSA6Pf1_sHB1ASpd7ru647KO2daC9rS_e8rtYp6AYPVmsE2_dDbY1bNjTfAbU7AXXbWYtRhyIeePSePhYKh8k1Rugwk356XGyKB_OZdDyXyc1D7DJTihxbTCT5as1Mn4cZfeWpR1NrB5ze4Gi7m_L4U5JU38-_Aaw3ub0?type=png)](https://mermaid.live/edit#pako:eNqNlNtu2kAQhl9ltLlJJEhtAwHcqpLBqIoqUkKIKrWuqsUeg4VPWa-bRklu-wB9xD5Jx1kbG2hp9wov_zf7z2H3kbmJh8xkK8HTNSxsJwZaWb5UGw6zE3eDAq5Q3idiA3rfONcH59q59kq_cJiSF2s-vf7ssDlfLgM5va51hsO-mKYportaa5FynMSSBzGFtmpxBxa3V6Y-NAqwQmUe1-hoBx3VaHcH7fwBHRP64Qbeo4gxhFPrTGk2L9-1zN6Vjf4im5BsgSIKYh5CI5nyYPrHaZw9gXb77ZPDdEiDeAVbm9C-BDKpOewJxg2rpdyAjyKQCJfj6QzmeJdjJiGIZVIkC6e3GYpfP34qq2d7MSx4o4J0iOQezDg1UoIvkkjRCiO-CLNPN-OoMF2wptczmOXLMMjWQBzEaii-CuWsCEFjsDMTJdyDKWYZXyHYGAbfUDwAJUFly_IIRQGOGj0uoYsy-9L5sbztRv9Kug_vkDrC6_Kl4UMja4q0j46qkg1UyeaYpWQRjxbNPjQ-PFYqcnGkULr2z0pZh73R9bJUW8f_OSTVoOlGs0gFWo52oZ8oPcZeNdJuyLPMRh_oWoMfhKF54vvDoaa13CRMhHm_JjOtTIpkg-37wJNr00i_v96DafBLGHW_51eAeaJ1hkvs7cvVDayO0_yu29kSA6Pf1_sHB1ASpd7ru647KO2daC9rS_e8rtYp6AYPVmsE2_dDbY1bNjTfAbU7AXXbWYtRhyIeePSePhYKh8k1Rugwk356XGyKB_OZdDyXyc1D7DJTihxbTCT5as1Mn4cZfeWpR1NrB5ze4Gi7m_L4U5JU38-_Aaw3ub0)A container-based VPN system that uses RabbitMQ as a message broker for communication between two containers over TUN devices.
 
-A demonstration project for working with TUN/TAP interfaces in Python using Docker. Ideal for network programming experiments and VPN prototyping.
+## 🚀 Installation
 
-## To Dos:
-
-- [x] Schreibe ein TUN Sender der in tun im byte format schreibt -> ausgangspunkt die empfangenen samples vom sdr in ip paket parsen und reinschreiben
-- [x] Logik schreiben die einen Frame korrekt mit IP Daten befüllt
-- [x] Kanalcodierung hinzufügen
-
-## 🌟 Features
-- Creates virtual TUN interfaces in Docker containers
-- Sends/receives custom ICMP packets
-- Configures network routing and iptables rules
-- Real-time packet monitoring with tcpdump
-- Cross-platform compatibility via Docker
-
-## ⚙️ Configuration
-
-<div style="text-align: center;">
-  <img src="mermaid-diagram-2025-03-13-140452.png" alt="Alt-Text" />
-</div>
-
-## 📋 Prerequisites
+### Requirements
 - Docker 20.10+
-- Linux host (recommended) or Docker Desktop with Linux containers
-- Administrative privileges for Docker operations
+- Docker Compose 2.20+
 
-## 🛠️ Build & Run
-
-### 1. Delete Existing tun-python Image (Optional)
-
+### Start command
 ```bash
-docker rmi $(docker images tun-python:latest -q)
+docker compose build --no-cache && docker compose up -d
 ```
 
-### 2. Build the Docker Image
-
-
+### Logs
 ```bash
-docker build -t tun-python .
+docker compose logs -f
 ```
 
-### 3. Start the Container
+### Open RabbitMQ Management
+- URL: [http://localhost:15672](http://localhost:15672)
 
-```bash
-docker run --rm -it \
-  --cap-add=NET_ADMIN \
-  --cap-add=SYS_ADMIN \
-  --sysctl net.ipv4.ip_forward=1 \
-  --sysctl net.ipv4.route.flush=1 \
-  --sysctl net.ipv6.conf.all.disable_ipv6=1 \
-  --device /dev/net/tun \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/logs:/var/log \
-  tun-python
+
+## 📂 Project Structure
+```plaintext
+.
+├── container_a/
+│ ├── Dockerfile
+│ ├── tun_reader.py
+│ └── start.sh
+├── container_b/
+│ ├── Dockerfile
+│ ├── tun_writer.py
+│ └── start.sh
+├── common.py
+├── docker-compose.yml
+└── requirements.txt
 ```
+
+## 🛠️ Configuration
+
+| Komponente         | Container A               | Container B               |
+|--------------------|---------------------------|---------------------------|
+| **TUN-IP**         | 192.0.2.2/24              | 192.0.2.3/24              |
+| **Routing**        | `default via 192.0.2.1`   | `default via 192.0.2.1`   |
+| **AMQP Queues**    | Quorum, Durable           | Quorum, Durable           |
+| **Healthcheck**    | RabbitMQ Status           | Process Alive Check       |
+
+## 📜 License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+

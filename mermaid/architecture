@@ -1,0 +1,32 @@
+graph TD
+    subgraph "Docker Network 172.18.0.0/16"
+        RMQ["RabbitMQ 172.18.0.2"]:::rmq
+        A["Container A 172.18.0.3 TUN:192.0.2.2"]:::tun
+        B["Container B 172.18.0.4 TUN:192.0.2.3"]:::tun
+        C["OS Kernel (A)"]:::kernel
+        D["OS Kernel (B)"]:::kernel
+        E["Terminal Container A"]:::term
+
+        E -->|"1 ping 192.0.2.3 -I tun0"| C
+        C -->|"2 Write ICMP Request into TUN (User→Kernel)"| C
+        A <-->|"3 Read Packet from TUN (Kernel→User)"| C
+
+        A -->|"4 AMQP Publish → network_request"| RMQ
+        RMQ -->|"5 Message Delivery to Consumer"| B
+        B -->|"6 Write Packet into TUN (User→Kernel)"| D
+        D -->|"7 Generate ICMP Reply (Kernel→TUN)"| D
+        B <-->|"8 Read Response from TUN (Kernel→User)"| D
+        B -->|"9 AMQP Publish → network_reply"| RMQ
+        RMQ -->|"10 Message Delivery to Consumer"| A
+        A -->|"11 Write Response into TUN (User→Kernel)"| C
+        C -->|"12 ICMP Reply to Terminal"| E
+    end
+
+    classDef rmq fill:#ff9900,color:white,stroke-width:2px;
+    classDef tun fill:#e1f5fe,stroke:#039be5;
+    classDef kernel fill:#f0f4c3,stroke:#827717;
+    classDef term fill:#d7ccc8,color:#000000,stroke:#5d4037;
+
+    class A,B tun
+    class C,D kernel
+    class E term

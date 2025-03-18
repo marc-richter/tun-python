@@ -24,5 +24,5 @@ def open_tun(device_name="tun0"):
     LINUX_TUNSETIFF = 0x400454CA
     ifs = struct.pack("16sH22s", device_name.encode(), LINUX_IFF_TUN | LINUX_IFF_NO_PI, b"")
     ioctl(tun, LINUX_TUNSETIFF, ifs)
-    logging.info(f"TUN-Interface {device_name} initialisiert")
+    logging.info(f"TUN {device_name} initialisiert - FD: {tun.fileno()}")
     return tun

@@ -10,12 +10,11 @@ RUN apt-get update && apt-get install -y \
     tcpdump \
     iptables \
     ethtool \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-
-# Kopiere alle notwendigen Dateien
 COPY common.py .
 COPY ./container_b/tun_writer.py .
 COPY ./container_b/start.sh .
