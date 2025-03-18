@@ -2,34 +2,68 @@ import argparse
 import logging
 import struct
 from datetime import datetime
+from time import sleep
 
 import pika
+from pika.exceptions import AMQPConnectionError
 from scapy.layers.inet import IP, TCP, ICMP
 
-from common import open_tun
+from common import open_tun, REPLY_QUEUE, REQUEST_QUEUE
 
 logging.basicConfig(level=logging.INFO,
                     format='%(filename)-15s - %(asctime)s - %(levelname)s - %(message)s')
 
-# RabbitMQ Konfiguration
+# Vorher
 RABBITMQ_HOST = 'rabbitmq'
-REQUEST_QUEUE = 'network_request'
-REPLY_QUEUE = 'network_reply'
 
+# Nachher (mit Authentifizierung und Port)
+RABBITMQ_CREDENTIALS = pika.PlainCredentials('user', 'pass')
+RABBITMQ_PARAMS = pika.ConnectionParameters(
+    host='rabbitmq',
+    port=5672,
+    virtual_host='/',
+    credentials=RABBITMQ_CREDENTIALS,
+    heartbeat=600,
+    blocked_connection_timeout=300
+)
 
 class RabbitMQClient:
     def __init__(self, tun=None):
-        self.connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=RABBITMQ_HOST)
-        )
-        self.channel = self.connection.channel()
-        self.channel.queue_declare(REQUEST_QUEUE)
-        self.channel.queue_declare(REPLY_QUEUE)
         self.tun = tun
-        self.channel.basic_consume(
+        self.reconnect_delay = 5
+        self.max_retries = 5
+        self.connection = self.create_connection()
+        self.init_channel()
+
+    def create_connection(self):
+        for i in range(self.max_retries):
+            try:
+                return pika.BlockingConnection(RABBITMQ_PARAMS)
+            except Exception as e:
+                if i == self.max_retries -1:
+                    raise
+                logging.warning(f"Verbindungsfehler (Versuch {i+1}/{self.max_retries}): {str(e)}")
+                sleep(self.reconnect_delay)
+        raise AMQPConnectionError("Maximale Verbindungsversuche erreicht")
+
+    def init_channel(self):
+        self.channel = self.connection.channel()
+        self.channel.queue_declare(
+            queue=REQUEST_QUEUE,
+            durable=True,
+            arguments={
+                'x-queue-type': 'quorum',
+                'x-dead-letter-exchange': 'dead_letters'
+            }
+        )
+
+        self.channel.queue_declare(
             queue=REPLY_QUEUE,
-            on_message_callback=self.handle_reply,
-            auto_ack=True
+            durable=True,
+            arguments={
+                'x-queue-type': 'quorum',
+                'x-dead-letter-exchange': 'dead_letters'
+            }
         )
 
     def publish_request(self, packet):
@@ -40,10 +74,17 @@ class RabbitMQClient:
         )
         logging.info(f"Paket an RabbitMQ gesendet: {len(packet)} bytes")
 
-    def handle_reply(self, ch, method, properties, body, tun):
-        if tun:
-            tun.write(body)
-            logging.info(f"Antwortpaket empfangen: {len(body)} bytes")
+    def handle_reply(self, ch, method, properties, body):
+        try:
+            if self.tun and body:
+                self.tun.write(body)
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                logging.info(f"Antwort verarbeitet: {len(body)} Bytes")
+            else:
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+        except Exception as e:
+            logging.error(f"Fehler bei Antwortverarbeitung: {str(e)}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
 
 class TrafficLogger:

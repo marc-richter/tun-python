@@ -1,15 +1,6 @@
 FROM ubuntu:22.04
 
-# Setze korrekte Architektur
-ENV DEBIAN_FRONTEND=noninteractive
-RUN dpkg --add-architecture amd64
-
-# Repository mit korrekter Architektur
-RUN sed -i 's/ports.ubuntu.com/archive.ubuntu.com/g' /etc/apt/sources.list
-
-# Pakete mit stabilen Repositories installieren
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+RUN apt-get update && apt-get install -y \
     iproute2 \
     python3 \
     python3-pip \

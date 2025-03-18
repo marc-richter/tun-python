@@ -13,4 +13,4 @@ ip route del 192.0.2.0/24 2>/dev/null || true
 ip route add 192.0.2.0/24 dev tun0 proto static metric 60
 
 ### Start Writer ###
-python3 /app/container_b/tun_writer.py
+python3 /app/tun_writer.py

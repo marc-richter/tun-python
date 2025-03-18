@@ -3,12 +3,23 @@ version: '3.8'
 services:
   rabbitmq:
     image: rabbitmq:3-management
-    ports:
-      - "15672:15672"
+    hostname: rabbitmq  # Wichtig für DNS-Auflösung
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
+      RABBITMQ_ERLANG_COOKIE: "SECURE_COOKIE"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 10s
+      retries: 10
     networks:
       - tun_net
 
   container_a:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     build:
       context: .
       dockerfile: container_a/Dockerfile
@@ -20,6 +31,9 @@ services:
       - tun_net
 
   container_b:
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     build:
       context: .
       dockerfile: container_b/Dockerfile
@@ -33,3 +47,4 @@ services:
 networks:
   tun_net:
     driver: bridge
+    attachable: true

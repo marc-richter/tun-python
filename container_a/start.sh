@@ -13,4 +13,4 @@ ip route del 192.0.2.0/24 2>/dev/null || true
 ip route add 192.0.2.0/24 dev tun0 proto static metric 50
 
 ### Start Reader ###
-python3 /app/container_a/tun_reader.py
+python3 /app/tun_reader.py
