@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+    networks:
+      - tun_net
+
+  container_a:
+    build:
+      context: .
+      dockerfile: container_a/Dockerfile
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      - tun_net
+
+  container_b:
+    build:
+      context: .
+      dockerfile: container_b/Dockerfile
+    cap_add: [NET_ADMIN, SYS_ADMIN]
+    devices: ["/dev/net/tun"]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      - tun_net
+
+networks:
+  tun_net:
+    driver: bridge
