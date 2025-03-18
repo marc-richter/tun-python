@@ -8,8 +8,8 @@ services:
       vpn_net:
         ipv4_address: 172.18.0.2
     environment:
-      RABBITMQ_DEFAULT_USER: user
-      RABBITMQ_DEFAULT_PASS: pass
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -19,7 +19,7 @@ services:
   container_a:
     build:
       context: .
-      dockerfile: container_a/Dockerfile  # Korrektur von container_b zu container_a
+      dockerfile: container_a/Dockerfile
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -50,7 +50,7 @@ services:
       - "/dev/net/tun:/dev/net/tun"
     networks:
       vpn_net:
-        ipv4_address: 172.18.0.4  # Unterschiedliche IP für Container B
+        ipv4_address: 172.18.0.4
     volumes:
       - ./data:/app/data
       - ./logs:/var/log

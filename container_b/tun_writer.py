@@ -48,7 +48,7 @@ class TunnelManager:
             self.connection = pika.BlockingConnection(
                 pika.ConnectionParameters(
                     host='rabbitmq',
-                    credentials=pika.PlainCredentials('user', 'pass'),
+                    credentials=pika.PlainCredentials('admin', 'admin'),
                     heartbeat=25,
                     blocked_connection_timeout=30,
                     connection_attempts=3,

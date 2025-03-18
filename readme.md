@@ -20,6 +20,8 @@ docker compose logs -f
 
 ### Open RabbitMQ Management
 - URL: [http://localhost:15672](http://localhost:15672)
+- Username: `admin`
+- Password: `admin`
 
 
 ## 📂 Project Structure

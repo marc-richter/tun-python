@@ -31,7 +31,7 @@ class RabbitMQClient:
                     pika.ConnectionParameters(
                         host='172.18.0.2',
                         port=5672,
-                        credentials=pika.PlainCredentials('user', 'pass'),
+                        credentials=pika.PlainCredentials('admin', 'admin'),
                         heartbeat=30,
                         blocked_connection_timeout=60,
                         retry_delay=5,
