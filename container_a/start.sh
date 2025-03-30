@@ -38,9 +38,14 @@ python3 /app/tun_reader.py &
 reader_pid=$!
 
 sleep 3  # Warte auf Interface-Initialisierung
+#########################################################################################
 
 ### Ping-Test mit korrekter Route ###
 ping -c 4 192.0.2.3 -I tun0 -W 2 | tee /var/log/container_a/ping_test.log
+# TODO: IPERF-Test ausprobieren
+
+
+#########################################################################################
 
 trap "kill $reader_pid; ip link del tun0 2>/dev/null" EXIT
 wait $reader_pid
