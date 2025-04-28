@@ -16,6 +16,34 @@ services:
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
 
+  channel-request:
+    build:
+      context: .
+      dockerfile: channel_request/Dockerfile
+    networks:
+      vpn_net:
+        ipv4_address: 172.18.0.5
+    volumes:
+      - ./data:/app/data
+      - ./logs:/var/log
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  channel-response:
+    build:
+      context: .
+      dockerfile: channel_response/Dockerfile
+    networks:
+      vpn_net:
+        ipv4_address: 172.18.0.6
+    volumes:
+      - ./data:/app/data
+      - ./logs:/var/log
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   container_a:
     build:
       context: .
@@ -57,6 +85,8 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+
 
 
 networks:

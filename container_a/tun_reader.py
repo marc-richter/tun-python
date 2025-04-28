@@ -11,7 +11,7 @@ from pika.exceptions import AMQPConnectionError
 from scapy.compat import raw
 from scapy.layers.inet import IP, TCP, ICMP
 
-from common import REQUEST_QUEUE, REPLY_QUEUE
+from common import REQUEST_QUEUE, REPLY_QUEUE_AFTER_CHANNEL
 
 logging.basicConfig(level=logging.INFO,
                     format='%(filename)-15s - %(asctime)s - %(levelname)s - %(message)s')
@@ -52,13 +52,13 @@ class RabbitMQClient:
             arguments={'x-queue-type': 'quorum'}
         )
         self.channel.queue_declare(
-            queue=REPLY_QUEUE,
+            queue=REPLY_QUEUE_AFTER_CHANNEL,
             durable=True,
             arguments={'x-queue-type': 'quorum'}
         )
-        logging.info(f"Start listening on {REPLY_QUEUE}")
+        logging.info(f"Start listening on {REPLY_QUEUE_AFTER_CHANNEL}")
         self.channel.basic_consume(
-            queue=REPLY_QUEUE,
+            queue=REPLY_QUEUE_AFTER_CHANNEL,
             on_message_callback=self.handle_reply,
             auto_ack=False
         )

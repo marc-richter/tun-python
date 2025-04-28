@@ -8,7 +8,7 @@ import pika
 from scapy.layers.inet import IP, ICMP
 from scapy.error import Scapy_Exception
 
-from common import open_tun, REQUEST_QUEUE, REPLY_QUEUE
+from common import open_tun, REQUEST_QUEUE_AFTER_CHANNEL, REPLY_QUEUE
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,7 +58,7 @@ class TunnelManager:
             self.channel = self.connection.channel()
 
             self.channel.queue_declare(
-                queue=REQUEST_QUEUE,
+                queue=REQUEST_QUEUE_AFTER_CHANNEL,
                 durable=True,
                 arguments={'x-queue-type': 'quorum'}
             )
@@ -77,7 +77,7 @@ class TunnelManager:
     def process_message(self):
         """Verarbeitet eine einzelne Nachricht"""
         method, _, body = self.channel.basic_get(
-            queue=REQUEST_QUEUE,
+            queue=REQUEST_QUEUE_AFTER_CHANNEL,
             auto_ack=False
         )
 

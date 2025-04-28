@@ -11,6 +11,9 @@ RABBITMQ_HOST = 'amqp://user:pass@rabbitmq:5672/'
 REQUEST_QUEUE = 'network_request'
 REPLY_QUEUE = 'network_reply'
 
+REQUEST_QUEUE_AFTER_CHANNEL = 'network_request_after_channel'
+REPLY_QUEUE_AFTER_CHANNEL = 'network_reply_after_channel'
+
 
 def get_channel():
     params = URLParameters(RABBITMQ_HOST)  # URLParameters statt ConnectionParameters

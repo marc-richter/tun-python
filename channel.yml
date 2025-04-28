@@ -1,0 +1,26 @@
+request_channel:
+  min_delay: 10    # ms
+  max_delay: 1000  # ms
+  jitter: 50       # ms
+  drop_probability: 0.05
+  distribution:
+    type: "exponential"
+    parameters:
+      lambda: 0.1 # ms^-1 -> mean delay of 10 ms
+
+reply_channel:
+  min_delay: 5     # ms
+  max_delay: 500   # ms
+  jitter: 20       # ms
+  drop_probability: 0.5
+  distribution:
+    type: "uniform"
+    parameters:
+      min_delay: 5    # ms
+      max_delay: 500  # ms
+
+
+retry:
+  base_delay: 100   # ms
+  jitter: 30        # ms
+  max_retries: 5
