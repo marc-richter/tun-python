@@ -14,7 +14,7 @@ def ping_cdf_from_file(filename, timestamp, plot=True):
         plot (bool): Wenn True, wird die CDF geplottet.
 
     Returns:
-        tuple: (sorted_times, cdf_values)
+        file_name: Dateiname der Grafik
     """
 
     #Dateiname evaluieren
@@ -53,7 +53,7 @@ def ping_cdf_from_file(filename, timestamp, plot=True):
         plt.close()
 
     #return sorted_times, cdf_values
-    return file_name #TODO: timestamp ggf. in main schon erstellen
+    return file_name
 
 
 def ping_time_distribution(filename, timestamp, bins=10, plot=True):
@@ -67,7 +67,7 @@ def ping_time_distribution(filename, timestamp, bins=10, plot=True):
             savefile (str): Dateiname zum Abspeichern (z.B. 'distribution.png').
 
         Returns:
-            np.ndarray: Array mit den Ping-Zeiten.
+            file_name: Dateiname der Grafik
         """
     # Dateiname evaluieren
     file_name = f"{timestamp}-hist.svg"
