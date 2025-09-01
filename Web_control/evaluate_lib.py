@@ -109,6 +109,65 @@ def ping_time_distribution(filename, timestamp, bins=10, plot=True):
     return file_name
 
 
+def ping_jitter_plot(filename, timestamp, plot=True):
+    """
+        Liest eine Ping-JSON-Datei ein und stellt Jitter grafisch dar.
+
+        Darstellung:
+        - Oben: Ping-Zeiten pro Sequenznummer
+        - Unten: Jitter (Differenzen zwischen aufeinanderfolgenden Ping-Zeiten)
+
+        Args:
+            filename (str): Pfad zur Ping-JSON-Datei.
+            plot (bool): Wenn True, wird der Plot angezeigt.
+            savefile (str): Dateiname zum Abspeichern (z.B. 'jitter.png').
+
+        Returns:
+            file_name: Dateiname der Grafik
+        """
+    # Dateiname evaluieren
+    file_name = f"{timestamp}-jitter.svg"
+    savefile = f"../logs/evaluated_data/{file_name}"
+
+    # Datei laden
+    with open(filename, "r") as f:
+        data = json.load(f)
+
+    # Extrahiere Sequenznummern & Zeiten
+    seq = [reply["icmp_seq"] for reply in data["replies"] if "time_ms" in reply]
+    times = np.array([reply["time_ms"] for reply in data["replies"] if "time_ms" in reply])
+
+    # Jitter als absolute Differenz benachbarter Pings
+    jitter = np.abs(np.diff(times))
+
+    # Plot erstellen
+    fig, axes = plt.subplots(2, 1, figsize=(8, 6), sharex=True)
+
+    # Ping-Zeiten
+    axes[0].plot(seq, times, marker="o", linestyle="-", color="steelblue")
+    axes[0].set_ylabel("Ping-Zeit (ms)")
+    axes[0].set_title(f"Ping-Zeiten & Jitter für {data['target']['hostname']}")
+    axes[0].grid(True)
+
+    # Jitter-Werte
+    axes[1].bar(seq[1:], jitter, color="orange", alpha=0.7, edgecolor="black")
+    axes[1].set_xlabel("ICMP Sequence")
+    axes[1].set_ylabel("Jitter (ms)")
+    axes[1].grid(True)
+
+    fig.tight_layout()
+
+    # Abspeichern
+    if savefile:
+        plt.savefig(savefile, dpi=300, bbox_inches="tight")
+
+    if plot:
+        plt.show()
+    else:
+        plt.close()
+
+    return file_name
+
 def get_timestamp():
     return datetime.datetime.now().strftime("%y-%m-%d_%H-%M")
 
@@ -119,6 +178,7 @@ def main(filename):
     # Return Werte sind die Datei Namen
     ping_cdf_from_file(filename, timestamp)
     ping_time_distribution(filename, timestamp)
+    ping_jitter_plot(filename, timestamp)
 
 
 if __name__ == "__main__":
