@@ -21,7 +21,8 @@ COPY ./container_a/tun_reader.py .
 COPY ./container_a/start.sh .
 COPY ./requirements.txt .
 COPY ./container_a/main.py .
-COPY ./channel.yml .
+COPY ./container_a/libs.py .
+
 
 RUN pip3 install -r requirements.txt && \
     chmod +x start.sh

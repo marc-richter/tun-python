@@ -25,6 +25,7 @@ import signal
 import threading
 from pathlib import Path
 import subprocess
+from libs import update_channel_yaml_safe, pictures
 
 import pika     # AMQP-Client für RabbitMQ
 import yaml     # YAML-Parser für das Einlesen von channel.yml
@@ -298,11 +299,9 @@ def ping_os_start(params: dict) -> str:
     output = "".join(output_lines)
     return output
 
-
-def pictures():
-    # TODO: Grafiken erzeugen und hochladen
-    print("pictures gestartet", flush=True)
+def write_channel_params():
     return
+
 
 # =========================
 #   Simulation-Hooks (Platzhalter)
@@ -321,14 +320,24 @@ def start_simulation(payload: dict):
 
     print("[PY] Simulation START mit Parametern:", payload, flush=True)
 
-    #TODO: Kanalparameter schreiben
+    # Kanalparameter in channel.yml schreiben
+    print(
+        update_channel_yaml_safe(
+            "channel.yml",
+            payload,
+            debug=True,
+            sync="none"  # kein fsync -> keine FUSE/Cloud-Hänger
+        ),
+        flush=True
+    )
+
 
     messdaten = ping_os_start(payload)
     print(messdaten, flush=True)
     print("Ping Funktion beendet.", flush=True)
 
     #TODO: Messdaten auswerten
-    #pictures(messdaten)
+    pictures(messdaten)
 
     #for i in range(ping_count):
     #    _publish_up({"type": "log", "text": f"Ping {i+1}/{ping_count}"})

@@ -41,8 +41,8 @@ sleep 3  # Warte auf Interface-Initialisierung
 #########################################################################################
 
 ### Ping-Test mit korrekter Route ###
-echo "Ping test startet"
-ping -c 1 192.0.2.3 -I tun0 -W 2 &> /var/log/container_a/ping_test.log
+#echo "Ping test startet"
+#ping -c 1 192.0.2.3 -I tun0 -W 2 &> /var/log/container_a/ping_test.log
 #cat /var/log/container_a/ping_test.log
 
 # TODO: hier die Main Routine aufrufen

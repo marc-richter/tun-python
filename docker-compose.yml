@@ -29,6 +29,7 @@ services:
         ipv4_address: 172.18.0.5
     volumes:
       - ./data:/app/data
+      - ./channel.yml:/app/channel.yml   # + Datei-Mount (bidirektional)
       - ./logs:/var/log
     depends_on:
       rabbitmq:
@@ -43,6 +44,7 @@ services:
         ipv4_address: 172.18.0.6
     volumes:
       - ./data:/app/data
+      - ./channel.yml:/app/channel.yml   # + Datei-Mount (bidirektional)
       - ./logs:/var/log
     depends_on:
       rabbitmq:
@@ -64,6 +66,7 @@ services:
         ipv4_address: 172.18.0.3
     volumes:
       - ./data:/app/data
+      - ./channel.yml:/app/channel.yml   # + Datei-Mount (bidirektional)
       - ./logs:/var/log
     depends_on:
       rabbitmq:
@@ -85,6 +88,7 @@ services:
         ipv4_address: 172.18.0.4    #innerhalb des Docker Netzwerks
     volumes:
       - ./data:/app/data
+      - ./channel.yml:/app/channel.yml   # + Datei-Mount (bidirektional)
       - ./logs:/var/log
     depends_on:
       rabbitmq:
@@ -107,11 +111,6 @@ services:
       - ./webclient/src:/app/src           # Live-Reload bei Code-Änderungen
       - ./webclient/index.html:/app/index.html
       - /app/node_modules                  # verhindert node_modules-Überschreibung
-
-
-
-
-
 
 networks:
   vpn_net:
