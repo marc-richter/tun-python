@@ -1,7 +1,7 @@
 request_channel:
   min_delay: 10    # ms
   max_delay: 1000  # ms
-  jitter: 55       # ms
+  jitter: 50       # ms
   bit_flip: 0x00    # Bit Flip Muster in Hex # TODO: Muss noch im py implementiert werden
   drop_probability: 0.05
   distribution:

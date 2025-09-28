@@ -8,7 +8,7 @@ chmod 0666 /dev/net/tun
 ### Netzwerk-Konfiguration ###
 ip link del tun0 2>/dev/null || true
 ip tuntap add mode tun tun0
-ip addr add 192.0.2.2/24 dev tun0
+ip addr add 192.0.2.2/24 dev tun0   # IP des Tun Interfaces
 ip link set tun0 up mtu 1400
 ethtool -K tun0 tx off rx off gro off
 
@@ -41,7 +41,14 @@ sleep 3  # Warte auf Interface-Initialisierung
 #########################################################################################
 
 ### Ping-Test mit korrekter Route ###
-ping -c 50 192.0.2.3 -I tun0 -W 2 &> /var/log/container_a/ping_test.log
+echo "Ping test startet"
+ping -c 1 192.0.2.3 -I tun0 -W 2 &> /var/log/container_a/ping_test.log
+#cat /var/log/container_a/ping_test.log
+
+# TODO: hier die Main Routine aufrufen
+python3 /app/main.py &
+#cat /var/log/container_a/ping_test.log
+
 # TODO: IPERF-Test ausprobieren
 
 

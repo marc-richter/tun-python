@@ -1,4 +1,7 @@
 scapy==2.5.0
 pika==1.3.2
-numpy==1.24.3
-PyYAML
+numpy~=2.2.5
+PyYAML~=6.0.2
+matplotlib~=3.10.1
+flask
+pyyaml

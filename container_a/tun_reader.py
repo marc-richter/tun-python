@@ -80,7 +80,7 @@ class RabbitMQClient:
         try:
             response = IP(body)
             logging.info(f"Antwort von container_b aus Queue erhalten: {response[IP].src} nach {response[IP].dst} erhalten")
-            if response.haslayer(ICMP) and response[ICMP].type == 0:
+            if response.haslayer(ICMP) and response[ICMP].type == 0: # Typ 0 ist Antwort auf Typ 8
                 # Erzwinge Neuberechnung der Checksumme
                 del response[ICMP].chksum
                 response = IP(raw(response))
@@ -115,7 +115,7 @@ def open_tun(device="tun0"):
 def process_packet(raw_packet, tun, logger, rabbit):
     try:
         logger.log_packet(raw_packet)
-        packet = IP(raw_packet)
+        packet = IP(raw_packet) #Bytes in IP Objekt laden
 
         if packet.haslayer(ICMP) and packet[ICMP].type == 8:
             logging.info(f"ICMP Request von {packet[IP].src} nach {packet[IP].dst}, hex: {packet[ICMP].load.hex()}")
@@ -136,7 +136,7 @@ def main():
         logging.info("TUN-Listener aktiv (RabbitMQ-Modus)")
 
         while True:
-            raw_packet = tun.read(65535)
+            raw_packet = tun.read(65535)    #Anzahl der Bits # Paket welches unter start.sh in tun rein geschrieben wird, wird hier raus geholt und übers 'normale' netzwerk/RabbitMQ weiter an das Ziel geschickt
             if raw_packet:
                 process_packet(raw_packet, tun, logger, rabbit)
             rabbit.connection.process_data_events(time_limit=1)

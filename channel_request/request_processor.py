@@ -4,6 +4,7 @@ import threading
 import random
 import numpy as np
 import queue
+import yaml
 from common import REQUEST_QUEUE, REQUEST_QUEUE_AFTER_CHANNEL
 
 logging.basicConfig(
@@ -35,6 +36,10 @@ class RequestProcessor:
         return max(params['min_delay'], min(delay, params['max_delay']))
 
     def _process_packet(self, ch, method, properties, body):
+        #TODO: hier ggf. die channel.yml neu einlesen
+        # with open('channel.yml') as f:
+        #     config = yaml.safe_load(f)
+        # params = config['request_channel']
         params = self.config['request_channel']
 
         if random.random() < params['drop_probability']:

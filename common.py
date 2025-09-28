@@ -14,6 +14,9 @@ REPLY_QUEUE = 'network_reply'
 REQUEST_QUEUE_AFTER_CHANNEL = 'network_request_after_channel'
 REPLY_QUEUE_AFTER_CHANNEL = 'network_reply_after_channel'
 
+WEB_QUEUE_UP =  'web_queue_up'
+WEB_QUEUE_DOWN = 'web_queue_down'
+
 
 def get_channel():
     params = URLParameters(RABBITMQ_HOST)  # URLParameters statt ConnectionParameters

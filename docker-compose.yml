@@ -11,10 +11,14 @@ services:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"     # AMQP für Python
+      - "15672:15672"   # Management UI
+      - "15674:15674"   # Web-STOMP für Browser
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
+    command: >
+      bash -c "rabbitmq-plugins enable --offline rabbitmq_stomp rabbitmq_web_stomp &&
+               rabbitmq-server"
 
   channel-request:
     build:
@@ -78,13 +82,33 @@ services:
       - "/dev/net/tun:/dev/net/tun"
     networks:
       vpn_net:
-        ipv4_address: 172.18.0.4
+        ipv4_address: 172.18.0.4    #innerhalb des Docker Netzwerks
     volumes:
       - ./data:/app/data
       - ./logs:/var/log
     depends_on:
       rabbitmq:
         condition: service_healthy
+
+  webclient-dev:
+    build:
+      context: ./webclient
+      dockerfile: Dockerfile.dev
+    container_name: webclient-dev
+    ports:
+      - "5173:5173"            # -> http://localhost:5173
+    depends_on:
+      rabbitmq:
+        condition: service_started
+    networks:
+      vpn_net:
+        ipv4_address: 172.18.0.7
+    volumes:
+      - ./webclient/src:/app/src           # Live-Reload bei Code-Änderungen
+      - ./webclient/index.html:/app/index.html
+      - /app/node_modules                  # verhindert node_modules-Überschreibung
+
+
 
 
 
