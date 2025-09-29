@@ -25,7 +25,13 @@ import signal
 import threading
 from pathlib import Path
 import subprocess
-from libs import update_channel_yaml_safe, pictures
+from libs import (
+    update_channel_yaml_safe,
+    parse_ping_messdaten,
+    generate_cdf_svg,
+    generate_hist_svg,
+    generate_jitter_svg,
+)
 
 import pika     # AMQP-Client für RabbitMQ
 import yaml     # YAML-Parser für das Einlesen von channel.yml
@@ -56,6 +62,65 @@ _shutdown = threading.Event()
 # =========================
 #   Utils (Hilfsfunktionen)
 # =========================
+def _publish_up_svg(svg_data, headers=None):
+    """
+    Hilfsfunktion: Sendet ein einzelnes SVG an die Up-Queue.
+    - svg_data: bytes oder str (SVG-XML)
+    - headers: optionale AMQP-Header (dict), z.B. {"chart": "cdf"}
+    """
+    try:
+        if isinstance(svg_data, str):
+            body = svg_data.encode("utf-8")
+        elif isinstance(svg_data, (bytes, bytearray)):
+            body = bytes(svg_data)
+        else:
+            raise TypeError("svg_data muss bytes oder str sein")
+
+        _channel.basic_publish(
+            exchange="",
+            routing_key=QUEUE_UP,
+            body=body,
+            properties=pika.BasicProperties(
+                content_type="image/svg+xml",
+                headers=headers or {},
+            ),
+        )
+    except Exception as e:
+        print(f"[PY] Fehler beim Publish (SVG): {e}", flush=True)
+
+
+def pictures(messdaten: str):
+    """
+    Nimmt den rohen Ping-Output (messdaten), parst ihn und erzeugt drei SVGs:
+      - CDF
+      - Histogramm/Verteilung
+      - Jitter
+    Jede Bildfunktion speichert selbst unter /var/log/evaluated_data/<TS>-*.svg
+    und liefert SVG-Bytes zurück, die wir direkt ans GUI senden.
+    """
+    parsed = parse_ping_messdaten(messdaten)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    try:
+        svg_cdf, _ = generate_cdf_svg(parsed, ts)
+        _publish_up_svg(svg_cdf, headers={"chart": "cdf"})          # image/svg+xml
+    except Exception as e:
+        _publish_up_svg({"type": "log", "text": f"CDF-Fehler: {e}"})
+
+    try:
+        svg_hist, _ = generate_hist_svg(parsed, ts)
+        _publish_up_svg(svg_hist, headers={"chart": "hist"})
+    except Exception as e:
+        _publish_up_svg({"type": "log", "text": f"Histogramm-Fehler: {e}"})
+
+    try:
+        svg_jitter, _ = generate_jitter_svg(parsed, ts)
+        _publish_up_svg(svg_jitter, headers={"chart": "jitter"})
+    except Exception as e:
+        _publish_up_svg({"type": "log", "text": f"Jitter-Fehler: {e}"})
+
+
+
 def _hexify_bit_flip(val):
     """
     Normalisiert den 'bit_flip'-Wert aus der YAML-Konfiguration zu einem Hex-String "0x..".

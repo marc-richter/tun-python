@@ -1,5 +1,15 @@
 import os
-from typing import Any, Dict
+import io
+import os
+import re
+import math
+import datetime
+from typing import Any, Dict, List, Tuple, Optional
+
+# Matplotlib ohne Display
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 def update_channel_yaml_safe(file_path: str, payload: Dict[str, Any], debug: bool = False, sync: str = "none") -> str:
     """
@@ -132,5 +142,212 @@ def update_channel_yaml_safe(file_path: str, payload: Dict[str, Any], debug: boo
     return dumped
 
 
-def pictures(messdaten):
-    return
+def parse_ping_messdaten(text: str) -> Dict[str, object]:
+    """
+    Parst einen (evtl. zusammengeklebten) Ping-Output-Text und liefert:
+      - times_ms: Liste der Ping-Zeiten (float, in ms) in Auftrittsreihenfolge
+      - seqs:     Liste der icmp_seq (falls vorhanden, sonst aufsteigende Indizes)
+      - transmitted: Summe über alle gefundenen "packets transmitted"
+      - received:    Summe über alle gefundenen "received"
+      - loss_rate:   (transmitted - received)/transmitted (0..1), wenn transmitted>0
+      - target:      Ziel-Host aus "PING ..." (letzter gefundener)
+    Der Parser ist robust gegenüber mehreren Blöcken (wir sammeln alle Antworten).
+    """
+    times: List[float] = []
+    seqs: List[int] = []
+    transmitted_total = 0
+    received_total = 0
+    target: Optional[str] = None
+
+    # Ziel-Host (letzter PING Header gewinnt)
+    for line in text.splitlines():
+        m_ping = re.search(r'^PING\s+([^\s(]+)', line.strip())
+        if m_ping:
+            target = m_ping.group(1)
+
+    # Antworten: ... icmp_seq=K ... time=X ms
+    for line in text.splitlines():
+        m_time = re.search(r'time[=<]\s*([0-9]*\.?[0-9]+)\s*ms', line)
+        if m_time:
+            try:
+                times.append(float(m_time.group(1)))
+            except ValueError:
+                pass
+        m_seq = re.search(r'icmp_seq=(\d+)', line)
+        if m_seq:
+            try:
+                seqs.append(int(m_seq.group(1)))
+            except ValueError:
+                pass
+
+    # Summen über alle Statistik-Zeilen
+    for line in text.splitlines():
+        m_sum = re.search(
+            r'(\d+)\s+packets\s+transmitted,\s+(\d+)\s+(?:packets\s+)?received',
+            line
+        )
+        if m_sum:
+            transmitted_total += int(m_sum.group(1))
+            received_total += int(m_sum.group(2))
+
+    # Fallback, falls keine Summary, aber Antworten da:
+    if transmitted_total == 0 and times:
+        transmitted_total = len(times)
+    if received_total == 0 and times:
+        received_total = len(times)
+
+    loss_rate = 0.0
+    if transmitted_total > 0:
+        loss_rate = max(0.0, min(1.0, (transmitted_total - received_total) / transmitted_total))
+
+    # Wenn keine echten seqs gefunden, Indexspur erzeugen
+    if not seqs and times:
+        seqs = list(range(1, len(times) + 1))
+
+    return {
+        "times_ms": times,
+        "seqs": seqs,
+        "transmitted": transmitted_total,
+        "received": received_total,
+        "loss_rate": loss_rate,
+        "target": target or "",
+    }
+
+
+# ---------- Helper ----------
+
+def _fig_to_svg_bytes(fig: plt.Figure) -> bytes:
+    buf = io.StringIO()
+    fig.savefig(buf, format="svg", bbox_inches="tight")
+    plt.close(fig)
+    return buf.getvalue().encode("utf-8")
+
+
+def _make_ts(ts: Optional[str] = None) -> str:
+    return ts or datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def _ensure_dir(path: str):
+    os.makedirs(path, exist_ok=True)
+
+
+def _fd_bins(values: List[float]) -> int:
+    if len(values) < 2:
+        return 1
+    xs = sorted(values)
+    q1 = xs[int(0.25 * (len(xs) - 1))]
+    q3 = xs[int(0.75 * (len(xs) - 1))]
+    iqr = q3 - q1
+    if iqr <= 0:
+        return max(1, int(math.sqrt(len(xs))))
+    bw = 2 * iqr / (len(xs) ** (1 / 3))
+    span = max(xs) - min(xs)
+    if span <= 0 or bw <= 0:
+        return max(1, int(math.sqrt(len(xs))))
+    return max(1, min(100, int(math.ceil(span / bw))))
+
+
+# ---------- Bilderzeuger (speichern + SVG-Bytes zurück) ----------
+
+SAVE_DIR = "/var/log/evaluated_data"
+
+def generate_cdf_svg(parsed: Dict[str, object], timestamp: Optional=str) -> Tuple[bytes, str]:
+    """
+    CDF der Ping-Zeiten (Treppenfunktion, where='post')
+    Speichert unter /var/log/evaluated_data/<ts>-cdf.svg
+    Rückgabe: (svg_bytes, file_path)
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+    times = list(parsed.get("times_ms", []))  # type: ignore
+    target = str(parsed.get("target", "") or "")
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    if times:
+        xs = sorted(float(t) for t in times)
+        n = len(xs)
+        ys = [(i + 1) / n for i in range(n)]
+        ax.step(xs, ys, where="post")
+        title = "CDF der Ping-Zeiten"
+        if target:
+            title += f" für {target}"
+        ax.set_title(title)
+        ax.set_xlabel("Ping-Zeit (ms)")
+        ax.set_ylabel("CDF")
+        ax.set_ylim(0.0, 1.0)
+        ax.grid(True, linestyle=":", linewidth=0.6)
+    else:
+        ax.set_title("CDF der Ping-Zeiten (keine Daten)")
+        ax.axis("off")
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-cdf.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
+
+
+def generate_hist_svg(parsed: Dict[str, object], timestamp: Optional=str) -> Tuple[bytes, str]:
+    """
+    Histogramm/Verteilung der Ping-Zeiten (normiert: relative Häufigkeit)
+    Speichert unter /var/log/evaluated_data/<ts>-hist.svg
+    Rückgabe: (svg_bytes, file_path)
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+    times = list(parsed.get("times_ms", []))  # type: ignore
+    fig, ax = plt.subplots(figsize=(5, 3))
+
+    if times:
+        bins = _fd_bins(times)
+        # relative Häufigkeit: Gewichte 1/N
+        N = len(times)
+        weights = [1.0 / N] * N
+        ax.hist(times, bins=bins, weights=weights)
+        ax.set_title("Verteilung der Ping-Zeiten")
+        ax.set_xlabel("Ping-Zeit (ms)")
+        ax.set_ylabel("Wahrscheinlichkeit")
+        ax.grid(True, axis="y", linestyle=":", linewidth=0.6)
+        ymax = max(ax.get_ylim()[1], 0.01)
+        ax.set_ylim(0, ymax)
+    else:
+        ax.set_title("Verteilung der Ping-Zeiten (keine Daten)")
+        ax.axis("off")
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-hist.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
+
+
+def generate_jitter_svg(parsed: Dict[str, object], timestamp: Optional=str) -> Tuple[bytes, str]:
+    """
+    Jitter = |Δ time_ms| zwischen aufeinanderfolgenden Pings
+    Speichert unter /var/log/evaluated_data/<ts>-jitter.svg
+    Rückgabe: (svg_bytes, file_path)
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+    times = list(parsed.get("times_ms", []))  # type: ignore
+    seqs  = list(parsed.get("seqs", []))      # type: ignore
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    if times and len(times) >= 2:
+        jitters = [abs(times[i] - times[i-1]) for i in range(1, len(times))]
+        x = seqs[1:] if seqs and len(seqs) == len(times) else list(range(1, len(times)))
+        ax.plot(x, jitters, marker="o")
+        mean_j = sum(jitters)/len(jitters)
+        ax.set_title(f"Jitter (mean={mean_j:.2f} ms)")
+        ax.set_xlabel("icmp_seq (oder Index)")
+        ax.set_ylabel("Jitter [ms]")
+        ax.grid(True, linestyle=":", linewidth=0.6)
+    else:
+        ax.set_title("Jitter (keine/zu wenige Daten)")
+        ax.axis("off")
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-jitter.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
