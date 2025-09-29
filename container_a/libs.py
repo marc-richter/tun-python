@@ -351,3 +351,91 @@ def generate_jitter_svg(parsed: Dict[str, object], timestamp: Optional=str) -> T
     with open(path, "wb") as f:
         f.write(svg)
     return svg, path
+
+
+def generate_seq_presence_svg(parsed: Dict[str, object],
+                              timestamp: Optional[str],
+                              ping_count: int) -> Tuple[bytes, str]:
+    """
+    Präsenzplot NUR für den letzten Ping-Run, mit fixer x-Achse 1..ping_count.
+
+    x: icmp_seq = 1..ping_count
+    y: 1 (empfangen) / 0 (fehlt)
+    Sequenz-Reset trennt Runs (neuer Run, wenn nächste seq <= vorherige).
+    Speichert unter /var/log/evaluated_data/<ts>-seq.svg
+    Rückgabe: (svg_bytes, file_path)
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+
+    seqs = list(parsed.get("seqs", []))          # type: ignore
+    times = list(parsed.get("times_ms", []))     # type: ignore
+
+    # ping_count validieren / fallback
+    if not isinstance(ping_count, int) or ping_count <= 0:
+        # Fallback: versuche aus letztem Run zu schließen, sonst Anzahl times
+        if seqs:
+            # letztes Segment bestimmen
+            runs: List[List[int]] = []
+            cur: List[int] = []
+            prev = None
+            for s in seqs:
+                if prev is not None and s <= prev:
+                    if cur:
+                        runs.append(cur)
+                    cur = []
+                cur.append(s)
+                prev = s
+            if cur:
+                runs.append(cur)
+            last = runs[-1] if runs else []
+            ping_count = max(last) if last else len(times) if times else 1
+        else:
+            ping_count = len(times) if times else 1
+
+    # Letzten Run segmentieren
+    present_seq_last_run: set[int] = set()
+    if seqs:
+        runs = []
+        cur = []
+        prev = None
+        for s in seqs:
+            if prev is not None and s <= prev:
+                if cur:
+                    runs.append(cur)
+                cur = []
+            cur.append(s)
+            prev = s
+        if cur:
+            runs.append(cur)
+        last = runs[-1] if runs else []
+        present_seq_last_run = set(last)
+    else:
+        # Keine icmp_seq gefunden: heuristisch annehmen, dass die ersten len(times)
+        # Sequenzen empfangen wurden (1..min(len(times), ping_count))
+        present_seq_last_run = set(range(1, min(len(times), ping_count) + 1))
+
+    # Achse 1..ping_count und Präsenzvektor bauen
+    xs = list(range(1, ping_count + 1))
+    ys = [1 if x in present_seq_last_run else 0 for x in xs]
+
+    # Plotten
+    fig, ax = plt.subplots(figsize=(5, 3))
+    ax.plot(xs, ys, marker="o")
+    ax.set_xlabel("icmp_seq")
+    ax.set_ylabel("Empfangen (0/1)")
+    if present_seq_last_run:
+        smin, smax = min(present_seq_last_run), max(present_seq_last_run)
+        ax.set_title(f"Pakete nach Sequenz (letzter Run: {smin}–{smax}, ping_count={ping_count})")
+    else:
+        ax.set_title(f"Pakete nach Sequenz (keine Daten, ping_count={ping_count})")
+    ax.set_yticks([0, 1])
+    ax.set_ylim(-0.1, 1.1)
+    ax.grid(True, linestyle=":", linewidth=0.6)
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-seq.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
+

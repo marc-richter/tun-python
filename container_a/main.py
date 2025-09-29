@@ -31,6 +31,7 @@ from libs import (
     generate_cdf_svg,
     generate_hist_svg,
     generate_jitter_svg,
+    generate_seq_presence_svg
 )
 
 import pika     # AMQP-Client für RabbitMQ
@@ -89,7 +90,7 @@ def _publish_up_svg(svg_data, headers=None):
         print(f"[PY] Fehler beim Publish (SVG): {e}", flush=True)
 
 
-def pictures(messdaten: str):
+def pictures(messdaten: str, ping_count):
     """
     Nimmt den rohen Ping-Output (messdaten), parst ihn und erzeugt drei SVGs:
       - CDF
@@ -118,6 +119,12 @@ def pictures(messdaten: str):
         _publish_up_svg(svg_jitter, headers={"chart": "jitter"})
     except Exception as e:
         _publish_up_svg({"type": "log", "text": f"Jitter-Fehler: {e}"})
+
+    try:
+        svg_seq, _ = generate_seq_presence_svg(parsed, ts, ping_count)
+        _publish_up_svg(svg_seq, headers={"chart": "seq"})  # nutzt deine bestehende SVG-Publish-Funktion
+    except Exception as e:
+        _publish_up({"type": "log", "text": f"SEQ-Plot-Fehler: {e}"})
 
 
 
@@ -402,7 +409,7 @@ def start_simulation(payload: dict):
     print("Ping Funktion beendet.", flush=True)
 
     #TODO: Messdaten auswerten
-    pictures(messdaten)
+    pictures(messdaten,int(payload.get("ping_count", 1)))
 
     #for i in range(ping_count):
     #    _publish_up({"type": "log", "text": f"Ping {i+1}/{ping_count}"})
