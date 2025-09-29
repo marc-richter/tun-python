@@ -94,23 +94,6 @@ services:
       rabbitmq:
         condition: service_healthy
 
-  webclient-dev:
-    build:
-      context: ./webclient
-      dockerfile: Dockerfile.dev
-    container_name: webclient-dev
-    ports:
-      - "5173:5173"            # -> http://localhost:5173
-    depends_on:
-      rabbitmq:
-        condition: service_started
-    networks:
-      vpn_net:
-        ipv4_address: 172.18.0.7
-    volumes:
-      - ./webclient/src:/app/src           # Live-Reload bei Code-Änderungen
-      - ./webclient/index.html:/app/index.html
-      - /app/node_modules                  # verhindert node_modules-Überschreibung
 
 networks:
   vpn_net:
