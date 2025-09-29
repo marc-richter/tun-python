@@ -6,6 +6,7 @@ import random
 import numpy as np
 import queue
 import time
+import yaml
 from common import REPLY_QUEUE, REPLY_QUEUE_AFTER_CHANNEL
 
 logging.basicConfig(
@@ -93,6 +94,16 @@ class ResponseProcessor:
 
     def _process_message(self, ch, method, properties, body):
         """Verarbeitet eine eingehende Nachricht"""
+
+        # hier die channel.yml neu einlesen
+        #with open('channel.yml') as f:
+        #   confige = yaml.safe_load(f)
+        #self.config = confige['reply_channel']  # sicherstellen, dass die neuen channel Parameter auch immer überall bereitgestellt werden
+        with open('channel.yml') as f:
+            confige = yaml.safe_load(f)
+        self.config = confige['reply_channel']
+
+
         logger.info(f"Verarbeite Nachricht aus {REPLY_QUEUE}: {body[:20]}...")
 
         if random.random() < self.config['drop_probability']:

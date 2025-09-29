@@ -36,7 +36,7 @@ class RequestProcessor:
         return max(params['min_delay'], min(delay, params['max_delay']))
 
     def _process_packet(self, ch, method, properties, body):
-        # hier ggf. die channel.yml neu einlesen
+        # hier die channel.yml neu einlesen
         with open('channel.yml') as f:
              config = yaml.safe_load(f)
         self.config = config                # sicherstellen, dass die neuen channel Parameter auch immer überall bereitgestellt werden
