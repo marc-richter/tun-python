@@ -3,7 +3,7 @@ request_channel:
   max_delay: 1000
   jitter: 55
   bit_flip: "0x0000"
-  drop_probability: 0.5
+  drop_probability: 0.005
   distribution:
     type: exponential
     parameters:

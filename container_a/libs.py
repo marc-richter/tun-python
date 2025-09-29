@@ -439,3 +439,131 @@ def generate_seq_presence_svg(parsed: Dict[str, object],
         f.write(svg)
     return svg, path
 
+
+# === libs.py: RTT-Helfer ===
+
+def _percentile_from_sorted(sorted_vals, q: float) -> float:
+    """q in [0,1]. Lineare Interpolation wie NumPy-Quantile."""
+    n = len(sorted_vals)
+    if n == 0:
+        return float("nan")
+    if n == 1:
+        return float(sorted_vals[0])
+    if q <= 0:
+        return float(sorted_vals[0])
+    if q >= 1:
+        return float(sorted_vals[-1])
+    pos = q * (n - 1)
+    lo = int(pos)
+    hi = min(lo + 1, n - 1)
+    frac = pos - lo
+    return float(sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac)
+
+
+def _rolling_percentile(vals, window: int, q: float):
+    """Gleitender Perzentil (trailing window, inkl. aktuellem Punkt)."""
+    out = []
+    if window <= 1:
+        # trivial: direktes Perzentil pro Einzelwert (= der Wert selbst)
+        for v in vals:
+            out.append(float(v))
+        return out
+    for i in range(len(vals)):
+        start = max(0, i - window + 1)
+        sub = sorted(vals[start:i+1])
+        out.append(_percentile_from_sorted(sub, q))
+    return out
+
+
+# === libs.py: neue Bildfunktionen ===
+
+def generate_rtt_timeseries_svg(parsed: Dict[str, object],
+                                timestamp: Optional[str],
+                                window: int = 15) -> Tuple[bytes, str]:
+    """
+    RTT-Zeitreihe mit gleitendem Median (P50) im Fenster `window`.
+    - x: icmp_seq (oder Index-Fallback)
+    - y: RTT in ms
+    Speichert: /var/log/evaluated_data/<ts>-rtt_series.svg
+    Rückgabe: (svg_bytes, file_path)
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+
+    times = list(parsed.get("times_ms", []))  # type: ignore
+    seqs  = list(parsed.get("seqs", []))      # type: ignore
+    if not times:
+        fig, ax = plt.subplots(figsize=(6, 3.5))
+        ax.set_title("RTT-Zeitreihe (keine Daten)")
+        ax.axis("off")
+        svg = _fig_to_svg_bytes(fig)
+        path = os.path.join(SAVE_DIR, f"{ts}-rtt_series.svg")
+        with open(path, "wb") as f:
+            f.write(svg)
+        return svg, path
+
+    # x-Achse wählen
+    if seqs and len(seqs) == len(times):
+        xs = seqs
+    else:
+        xs = list(range(1, len(times) + 1))
+
+    # Rolling Median (P50)
+    med = _rolling_percentile(times, window, 0.50)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(7.2, 4.0))
+    ax.plot(xs, times, marker="o", linestyle="-", linewidth=1.0, alpha=0.75, label="RTT")
+    ax.plot(xs, med,   linestyle="-", linewidth=1.6, label=f"Rolling Median (W={window})")
+
+    ax.set_title("RTT-Zeitreihe mit gleitendem Median")
+    ax.set_xlabel("icmp_seq (oder Index)")
+    ax.set_ylabel("RTT [ms]")
+    ax.grid(True, linestyle=":", linewidth=0.6)
+    ax.legend(loc="best")
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-rtt_series.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
+
+
+def generate_rtt_ccdf_svg(parsed: Dict[str, object],
+                          timestamp: Optional[str],
+                          log_y: bool = True) -> Tuple[bytes, str]:
+    """
+    RTT-Tail (CCDF): y = 1 - CDF(x)
+    - x: RTT in ms (sortiert)
+    - y: Anteil der RTTs, die >= x sind
+    Optional: log-Y-Skala für die Schwanz-Verteilung.
+    Speichert: /var/log/evaluated_data/<ts>-rtt_ccdf.svg
+    """
+    _ensure_dir(SAVE_DIR)
+    ts = _make_ts(timestamp)
+
+    times = list(parsed.get("times_ms", []))  # type: ignore
+
+    fig, ax = plt.subplots(figsize=(6.4, 3.8))
+    if times:
+        xs = sorted(float(t) for t in times)
+        n = len(xs)
+        # ECDF: i/n, CCDF = 1 - i/n (mit i von 1..n)
+        ys = [1.0 - (i + 1) / n for i in range(n)]
+        ax.step(xs, ys, where="post")
+        ax.set_title("RTT-Tail (CCDF)")
+        ax.set_xlabel("RTT [ms]")
+        ax.set_ylabel("1 - CDF")
+        if log_y:
+            ax.set_yscale("log")
+        ax.grid(True, which="both", linestyle=":", linewidth=0.6)
+    else:
+        ax.set_title("RTT-Tail (keine Daten)")
+        ax.axis("off")
+
+    svg = _fig_to_svg_bytes(fig)
+    path = os.path.join(SAVE_DIR, f"{ts}-rtt_ccdf.svg")
+    with open(path, "wb") as f:
+        f.write(svg)
+    return svg, path
+

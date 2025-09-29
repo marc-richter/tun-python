@@ -940,8 +940,13 @@ class MainWindow(QtWidgets.QMainWindow):
         finally:
             super().closeEvent(event)
 
+def starte_backend():
+    return
 
 if __name__ == "__main__":
+
+    #starte_backend()
+
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow()
     w.show()

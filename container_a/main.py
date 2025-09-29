@@ -31,7 +31,9 @@ from libs import (
     generate_cdf_svg,
     generate_hist_svg,
     generate_jitter_svg,
-    generate_seq_presence_svg
+    generate_seq_presence_svg,
+    generate_rtt_timeseries_svg,
+    generate_rtt_ccdf_svg
 )
 
 import pika     # AMQP-Client für RabbitMQ
@@ -109,6 +111,33 @@ def pictures(messdaten: str, ping_count):
         _publish_up_svg({"type": "log", "text": f"CDF-Fehler: {e}"})
 
     try:
+        svg_rtt, _ = generate_rtt_timeseries_svg(parsed, ts, window=15)
+        _publish_up_svg(svg_rtt, headers={"chart": "rtt_series"})
+    except Exception as e:
+        _publish_up({"type": "log", "text": f"RTT-Series-Fehler: {e}"})
+
+    try:
+        svg_jitter, _ = generate_jitter_svg(parsed, ts)
+        _publish_up_svg(svg_jitter, headers={"chart": "jitter"})
+    except Exception as e:
+        _publish_up_svg({"type": "log", "text": f"Jitter-Fehler: {e}"})
+
+    try:
+        svg_seq, _ = generate_seq_presence_svg(parsed, ts, ping_count)
+        _publish_up_svg(svg_seq, headers={"chart": "seq"})  # nutzt deine bestehende SVG-Publish-Funktion
+    except Exception as e:
+        _publish_up({"type": "log", "text": f"SEQ-Plot-Fehler: {e}"})
+
+
+
+'''
+    try:
+        svg_cdf, _ = generate_cdf_svg(parsed, ts)
+        _publish_up_svg(svg_cdf, headers={"chart": "cdf"})          # image/svg+xml
+    except Exception as e:
+        _publish_up_svg({"type": "log", "text": f"CDF-Fehler: {e}"})
+
+    try:
         svg_hist, _ = generate_hist_svg(parsed, ts)
         _publish_up_svg(svg_hist, headers={"chart": "hist"})
     except Exception as e:
@@ -126,7 +155,18 @@ def pictures(messdaten: str, ping_count):
     except Exception as e:
         _publish_up({"type": "log", "text": f"SEQ-Plot-Fehler: {e}"})
 
+    try:
+        svg_rtt, _ = generate_rtt_timeseries_svg(parsed, ts, window=15)
+        _publish_up_svg(svg_rtt, headers={"chart": "rtt_series"})
+    except Exception as e:
+        _publish_up({"type": "log", "text": f"RTT-Series-Fehler: {e}"})
 
+    try:
+        svg_tail, _ = generate_rtt_ccdf_svg(parsed, ts, log_y=True)
+        _publish_up_svg(svg_tail, headers={"chart": "rtt_ccdf"})
+    except Exception as e:
+        _publish_up({"type": "log", "text": f"RTT-CCDF-Fehler: {e}"})
+'''
 
 def _hexify_bit_flip(val):
     """
