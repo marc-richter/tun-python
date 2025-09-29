@@ -1,0 +1,28 @@
+request_channel:
+  min_delay: 10    # ms
+  max_delay: 1000  # ms
+  jitter: 55       # ms
+  bit_flip: 0x00    # Bit Flip Muster in Hex # TODO: Muss noch im py implementiert werden
+  drop_probability: 0.05
+  distribution:
+    type: "exponential"
+    parameters:
+      lambda: 0.1 # ms^-1 -> mean delay of 10 ms
+
+reply_channel:
+  min_delay: 5     # ms
+  max_delay: 500   # ms
+  jitter: 20       # ms
+  bit_flip: 0x00    # Bit Flip Muster in Hex # TODO: Muss noch im py implementiert werden
+  drop_probability: 0.1
+  distribution:
+    type: "uniform"
+    parameters:
+      min_delay: 5    # ms
+      max_delay: 500  # ms
+
+
+retry:
+  base_delay: 100   # ms
+  jitter: 30        # ms
+  max_retries: 5
