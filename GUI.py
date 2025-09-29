@@ -901,6 +901,8 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as e:
             self.log(f"Backend-Stop-Fehler: {e}")
         self.status.showMessage("stop_simulation gesendet (queued).", 2500)
+        """Schließt das Fenster."""
+        self.close()
 
     # ---------------- SVG-Flow ----------------
     @QtCore.Slot(bytes)
@@ -945,13 +947,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.pub_worker.stop()
         finally:
             super().closeEvent(event)
-
-
-
-
-
-
-
 
 
 
