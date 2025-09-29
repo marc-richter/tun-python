@@ -58,6 +58,8 @@ from pika.exceptions import ChannelClosedByBroker
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtSvgWidgets import QSvgWidget
 
+from GUI_libs import starte_backend, stop_backend
+
 
 # ---------------------------- Logging mit Ringpuffer ----------------------------
 class RingBufferHandler(logging.Handler):
@@ -894,6 +896,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def on_stop_simulation(self):
         """Sendet stop_simulation."""
         self.pub_worker.send({"type": "stop_simulation"})
+        try:
+            stop_backend(down_with_volumes=False)
+        except Exception as e:
+            self.log(f"Backend-Stop-Fehler: {e}")
         self.status.showMessage("stop_simulation gesendet (queued).", 2500)
 
     # ---------------- SVG-Flow ----------------
@@ -940,12 +946,21 @@ class MainWindow(QtWidgets.QMainWindow):
         finally:
             super().closeEvent(event)
 
-def starte_backend():
-    return
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
-    #starte_backend()
+    starte_backend()
 
     app = QtWidgets.QApplication(sys.argv)
     w = MainWindow()
