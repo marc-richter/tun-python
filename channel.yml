@@ -11,7 +11,7 @@ request_channel:
 reply_channel:
   min_delay: 5
   max_delay: 500
-  jitter: 20
+  jitter: 28
   bit_flip: "0x0000"
   drop_probability: 0.1
   distribution:
